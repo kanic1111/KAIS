@@ -1,3 +1,44 @@
+#!/bin/bash
+# Disk and mount point
+DISK="/dev/vdb"
+MOUNTPOINT="/mnt"
+
+# Check if disk exists
+if [ ! -b "$DISK" ]; then
+    echo "Disk $DISK does not exist!"
+    exit 1
+fi
+
+# Check if disk is formatted
+FS_TYPE=$(blkid -o value -s TYPE "$DISK")
+if [ -z "$FS_TYPE" ]; then
+    echo "Formatting $DISK as ext4..."
+    sudo mkfs.ext4 -F "$DISK"
+else
+    echo "$DISK is already formatted as $FS_TYPE"
+fi
+
+# Create mount point if not exists
+if [ ! -d "$MOUNTPOINT" ]; then
+    echo "Creating mount point $MOUNTPOINT..."
+    sudo mkdir -p "$MOUNTPOINT"
+fi
+
+# Mount the disk
+echo "Mounting $DISK to $MOUNTPOINT..."
+sudo mount "$DISK" "$MOUNTPOINT"
+
+# Add to /etc/fstab if not already present
+UUID=$(blkid -s UUID -o value "$DISK")
+if ! grep -q "$UUID" /etc/fstab; then
+    echo "Adding $DISK to /etc/fstab..."
+    echo "UUID=$UUID  $MOUNTPOINT  ext4  defaults  0 2" | sudo tee -a /etc/fstab
+else
+    echo "$DISK is already in /etc/fstab"
+fi
+
+echo "Mount disk Complete change containerd mountpoint to mount disk "
+
 ROOT_DEV=$(findmnt -n -o SOURCE / | sed -E 's|/dev/||; s/[0-9]+$//')
 MNT=$(lsblk -nr -o NAME,MOUNTPOINT | awk -v root="$ROOT_DEV" '$2 != "" && $1 !~ "^"root {print $1; exit}')
 MNT_PATH=$(findmnt -n -o TARGET /dev/$MNT)
